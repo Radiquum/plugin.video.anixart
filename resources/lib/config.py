@@ -5,7 +5,11 @@ HEADERS = {
     }
 API_URL = "https://api.anixart.tv"
 ENDPOINTS = {
-    "filter": f"{API_URL}/filter"
+    "filter": f"{API_URL}/filter",
+    "release": {
+        "info": f"{API_URL}/release",
+        "episode": f"{API_URL}/episode",
+    }
 #   release: {
 #     info: `${API_URL}/release`,
 #     episode: `${API_URL}/episode`,
