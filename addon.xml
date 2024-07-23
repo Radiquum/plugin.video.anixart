@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon id="plugin.video.anixart"
-  version="0.0.1"
-  name="Anixart for Kodi"
+  version="0.0.2"
+  name="Anixart"
   provider-name="Radiquum">
   <requires>
     <import addon="xbmc.python" version="3.0.1" />
