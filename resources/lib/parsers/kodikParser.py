@@ -4,32 +4,32 @@ from bs4 import BeautifulSoup
 import re
 import json
 import ast
-import urllib.parse
+# import urllib.parse
 import base64
-import xbmcgui
-import xbmcplugin
+# import xbmcgui
+# import xbmcplugin
 
 
 URL = sys.argv[0]
 PLUGIN_URL = f"plugin://{sys.argv[0].split('/')[2]}"
 
 
-def kodikAddQualitySources(url):
-    links = fetchSourceUrls(url)
-    for quality in links.keys():
-        decryptedSrc = decryptSourceUrl(links[quality][0]['src'])
-        # .replace(':hls:manifest.m3u8', '')
-        url = f"{PLUGIN_URL}/play?{urllib.parse.urlencode({'url': decryptedSrc, 'player': 'kodik', 'action': 'play'})}"
-        list_item = xbmcgui.ListItem(label=quality)
-        list_item.setProperty('IsPlayable', 'True')
-        xbmcplugin.addDirectoryItem(int(sys.argv[1]), url, list_item, False)
-    xbmcplugin.endOfDirectory(int(sys.argv[1]))
+# def kodikAddQualitySources(url):
+#     links = fetchSourceUrls(url)
+#     for quality in links.keys():
+#         decryptedSrc = decryptSourceUrl(links[quality][0]['src'])
+#         url = f"{PLUGIN_URL}/play?{urllib.parse.urlencode({'url': decryptedSrc, 'player': 'kodik', 'action': 'play'})}"
+#         list_item = xbmcgui.ListItem(label=quality)
+#         list_item.setProperty('IsPlayable', 'True')
+#         xbmcplugin.addDirectoryItem(int(sys.argv[1]), url, list_item, False)
+#     xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
-def fetchSourceUrls(releaseUrl):
+def fetchSourceUrls(releaseUrl):    
     r = requests.get(releaseUrl)
 
-    urlSplit = releaseUrl.replace("https://aniqit.com/", "").split("/")
+    urlSplit = releaseUrl.split("/")
+    baseDomain = urlSplit[2]
     soup = BeautifulSoup(r.text, "html.parser")
     script = soup.find("script")
 
@@ -55,14 +55,15 @@ def fetchSourceUrls(releaseUrl):
             urlParams = json.loads(urlParams)
             urlParams["bad_user"] = False
             urlParams["cdn_is_working"] = True
-            urlParams["type"] = urlSplit[0]
-            urlParams["hash"] = urlSplit[2]
-            urlParams["id"] = urlSplit[1]
+            urlParams["type"] = urlSplit[3]
+            urlParams["id"] = urlSplit[4]
+            urlParams["hash"] = urlSplit[5]
     else:
         raise Exception("Script tag not found")
 
     # https://aniqit.com/ftor - endpoint to get sources urls
-    r = requests.post("https://aniqit.com/ftor", data=urlParams)
+    # print(f"Sending POST to: https://{urlSplit[2]}/ftor, with data: {urlParams}")
+    r = requests.post(f"https://{urlSplit[2]}/ftor", data=urlParams)
     response = r.json()
 
     # { ..., links: {

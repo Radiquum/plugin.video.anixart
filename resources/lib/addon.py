@@ -9,8 +9,8 @@ import json
 import xbmc
 import xbmcgui
 import xbmcplugin
-from parsers.kodikParser import kodikAddQualitySources
-from config import USER_AGENT
+from parsers.kodikParser import fetchSourceUrls, decryptSourceUrl
+# from config import USER_AGENT
 
 plugin = Plugin()
 URL = sys.argv[0]
@@ -69,7 +69,7 @@ def homePage() -> None:
     xbmcplugin.endOfDirectory(plugin.handle)
 
 
-def addReleaseToDirectory(pluginHandle, item):
+def addReleaseToDirectory(pluginHandle, item) -> None:
     is_folder = True
     genres: list = []
     if item['genres']:
@@ -105,7 +105,7 @@ def addReleaseToDirectory(pluginHandle, item):
 
 
 @plugin.route('/home/<listId>')
-def homeListPage(listId: str):
+def homeListPage(listId: str) -> None:
 
     page: int = int(plugin.args['page'][0])
     listId: Union[None, int] = int(listId)
@@ -147,27 +147,29 @@ def homeListPage(listId: str):
 
     list_item = xbmcgui.ListItem(label=f"Следующая страница ({page + 2})")
     xbmcplugin.addDirectoryItem(plugin.handle, f"{URL}?page={page + 1}", list_item, True)
-
     xbmcplugin.endOfDirectory(plugin.handle)
 
-def addDubToDirectory(pluginHandle, item):
+
+def addDubToDirectory(pluginHandle, item) -> None:
     is_folder = True
 
     list_item = xbmcgui.ListItem(label=f"{item['name']}")
     url = f"{URL}/{item['id']}"
     xbmcplugin.addDirectoryItem(pluginHandle, url, list_item, is_folder)
 
+
 @plugin.route('/release/<releaseId>')
-def releasePage(releaseId: str):
+def releasePage(releaseId: str) -> None:
     # releaseInfo = apiRequest(f"{ENDPOINTS['release']['episode']}/{releaseId}", "GET")
     dubInfo = apiRequest(f"{ENDPOINTS['release']['episode']}/{releaseId}", "GET")
-    
+
     for item in dubInfo['types']:
         addDubToDirectory(plugin.handle, item)
     xbmcplugin.endOfDirectory(plugin.handle)
-    
+
+
 @plugin.route('/release/<releaseId>/<voiceoverId>')
-def releasePage(releaseId: str, voiceoverId: str):
+def releasePage(releaseId: str, voiceoverId: str) -> None:
     sourceInfo = apiRequest(f"{ENDPOINTS['release']['episode']}/{releaseId}/{voiceoverId}", "GET")
 
     for item in sourceInfo['sources']:
@@ -175,7 +177,7 @@ def releasePage(releaseId: str, voiceoverId: str):
     xbmcplugin.endOfDirectory(plugin.handle)
 
 
-def addEpisodeToDirectory(pluginHandle, item: dict, index: int, sourceType: str):
+def addEpisodeToDirectory(pluginHandle, item: dict, index: int, ReleaseInfo: str) -> None:
     is_folder = True
 
     label = item['name'] or f"{item['position'] + 1} серия"
@@ -185,45 +187,50 @@ def addEpisodeToDirectory(pluginHandle, item: dict, index: int, sourceType: str)
     info_tag.setEpisode(int(item['position']))
     list_item.setProperty('IsPlayable', 'True')
 
-    if index == 0:
-        genres: list = []
-        if item['release']['genres']:
-            genres = item['release']['genres'].split(', ')
+    genres: list = []
+    if ReleaseInfo['release']['genres']:
+        genres = ReleaseInfo['release']['genres'].split(', ')
 
-        list_item.setArt({'poster': item['release']['image']})
-        info_tag.setTitle(item['release']['title_ru'])
-        info_tag.setGenres(genres)
-        info_tag.setRating(item['release']['grade'], item['release']['vote_count'])
-        info_tag.setPlot(item['release']['description'])
-        info_tag.setCountries([item['release']['country'] or "Неизвестно"])
-        info_tag.setDirectors([f"Режиссёр: {item['release']['director'] or 'Неизвестно'}", f"Автор: {item['release']['author'] or 'Неизвестно'}"])
-        info_tag.setStudios([item['release']['studio'] or "Неизвестно"])
-        if item['release']['status']:
-            info_tag.setTvShowStatus(item['release']['status']['name'])
-        if item['release']['year']:
-            info_tag.setYear(int(item['release']['year']))
-        info_tag.setDuration(item['release']['duration'] * 60)
+    list_item.setArt({'poster': ReleaseInfo['release']['image']})
+    info_tag.setTitle(ReleaseInfo['release']['title_ru'])
+    info_tag.setGenres(genres)
+    info_tag.setRating(ReleaseInfo['release']['grade'], ReleaseInfo['release']['vote_count'])
+    info_tag.setPlot(ReleaseInfo['release']['description'])
+    info_tag.setCountries([ReleaseInfo['release']['country'] or "Неизвестно"])
+    info_tag.setDirectors([f"Режиссёр: {ReleaseInfo['release']['director'] or 'Неизвестно'}", f"Автор: {ReleaseInfo['release']['author'] or 'Неизвестно'}"])
+    info_tag.setStudios([ReleaseInfo['release']['studio'] or "Неизвестно"])
+    if ReleaseInfo['release']['status']:
+        info_tag.setTvShowStatus(ReleaseInfo['release']['status']['name'])
+    if ReleaseInfo['release']['year']:
+        info_tag.setYear(int(ReleaseInfo['release']['year']))
+    info_tag.setDuration(ReleaseInfo['release']['duration'] * 60)
+    list_item.setProperty("IsPlayable", "True")
 
-    if sourceType.lower() == "kodik":
-        url = f"{PLUGIN_URL}/play?{urlencode({'url': item['url'], 'player': 'kodik', 'action': 'selectQuality'})}"
-
-    # url = f"{URL}/play?{urlencode({'url': item['url']})}"
-    xbmcplugin.addDirectoryItem(pluginHandle, url, list_item, is_folder)
+    if ReleaseInfo['source']['name'].lower() == "kodik":
+        encryptedSourcesUrls = fetchSourceUrls(item['url'])
+        sourceUrl = decryptSourceUrl(encryptedSourcesUrls[list(encryptedSourcesUrls.keys())[0]][0]['src'])
+        manifestUrl = sourceUrl.replace(f'{list(encryptedSourcesUrls.keys())[0]}.mp4:hls:', '')
+        url = f"{PLUGIN_URL}/play?{urlencode({'url': manifestUrl, 'player': 'kodik', 'action': 'play'})}"
+        xbmcplugin.addDirectoryItem(pluginHandle, url, list_item, False)
+    else:
+        url = f"{PLUGIN_URL}/play?{urlencode({'url': item['url'], 'player': 'kodik', 'action': 'play'})}"
+        xbmcplugin.addDirectoryItem(pluginHandle, url, list_item, is_folder)
 
 
 @plugin.route('/play')
-def playVideo():
+def playVideo() -> None:
     url = plugin.args['url'][0]
     player = plugin.args['player'][0]
     action = plugin.args['action'][0]
 
-    if player == "kodik" and action == "selectQuality":
-        kodikAddQualitySources(url)
+    # if player == "kodik" and action == "selectQuality":
+    #     kodikAddQualitySources(url)
 
     if action == "play":
         play_item = xbmcgui.ListItem(offscreen=True)
         play_item.setProperty('IsPlayable', 'True')
-        play_item.setPath(f"{url}{urlencode({'|User-Agent': f'{USER_AGENT}'})}")
+        # play_item.setPath(f"{url}{urlencode({'|User-Agent': f'{USER_AGENT}'})}")
+        play_item.setPath(f"{url}")
         xbmcplugin.setResolvedUrl(plugin.handle, True, play_item)
 
 
@@ -231,11 +238,11 @@ def playVideo():
 def releasePage(releaseId: str, voiceoverId: str, sourceId: str):
     episodesInfo = apiRequest(f"{ENDPOINTS['release']['episode']}/{releaseId}/{voiceoverId}/{sourceId}", "GET")
     for index, item in enumerate(episodesInfo['episodes']):
-        addEpisodeToDirectory(plugin.handle, item, index, episodesInfo['episodes'][0]['source']['name'])
+        addEpisodeToDirectory(plugin.handle, item, index, episodesInfo['episodes'][0])
     xbmcplugin.endOfDirectory(plugin.handle)
 
 
-def run(argv):
+def run(argv) -> None:
     ''' Addon entry point from wrapper '''
     plugin.run(argv)
 
